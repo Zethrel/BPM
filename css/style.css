@@ -93,6 +93,17 @@ body {
   100% { transform: scale(1.09); box-shadow: 0 0 0 26px rgba(255, 214, 10, 0), inset 0 0 60px rgba(255, 214, 10, 0.12); }
 }
 
+/* Downbeat (beat 1 of the bar): a bigger, brighter pulse. */
+.pulse.beat.downbeat {
+  animation: beatPulseDown 320ms ease-out;
+  border-color: rgba(255, 214, 10, 0.8);
+}
+
+@keyframes beatPulseDown {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(255, 214, 10, 0.75), inset 0 0 70px rgba(255, 214, 10, 0.22); }
+  100% { transform: scale(1.15); box-shadow: 0 0 0 36px rgba(255, 214, 10, 0), inset 0 0 70px rgba(255, 214, 10, 0.22); }
+}
+
 .reading-inner {
   position: relative;
   text-align: center;

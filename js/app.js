@@ -35,11 +35,12 @@
     statusEl.textContent = msg;
   }
 
-  function flashBeat() {
-    pulse.classList.remove('beat');
+  function flashBeat(isDownbeat) {
+    pulse.classList.remove('beat', 'downbeat');
     // Force reflow so the animation can retrigger.
     void pulse.offsetWidth;
     pulse.classList.add('beat');
+    if (isDownbeat) pulse.classList.add('downbeat');
   }
 
   async function startListening() {

@@ -17,7 +17,8 @@
  * The optional metronome click is NOT triggered off individual detected beats
  * (which can jitter); instead a lookahead scheduler emits clicks on the audio
  * clock at a fixed interval derived from the measured BPM, so the tempo stays
- * rock-steady. That same scheduler drives the visual pulse while it runs; when
+ * rock-steady. Every Nth beat (a 4/4 bar by default) is accented as a downbeat.
+ * That same scheduler drives the visual pulse while it runs; when
  * the click is off, a lightweight adaptive-threshold detector flashes the pulse
  * on detected beats instead.
  *
@@ -43,6 +44,8 @@ class BPMDetector {
     this.scheduleAhead = 0.1;          // seconds to schedule in advance
     this.schedulerIntervalMs = 25;     // how often the scheduler wakes up
     this.scheduledOsc = [];            // pending click oscillators (for cleanup)
+    this.beatsPerBar = options.beatsPerBar ?? 4; // accent every Nth beat
+    this.beatCount = 0;                // position within the current bar
 
     // Audio graph nodes
     this.audioContext = null;
@@ -208,6 +211,7 @@ class BPMDetector {
   _startScheduler() {
     if (this.schedulerTimer || !this.audioContext) return;
     this.nextTickTime = this.audioContext.currentTime + 0.12;
+    this.beatCount = 0; // start each run on a downbeat
     this.schedulerTimer = setInterval(() => this._scheduleTick(), this.schedulerIntervalMs);
   }
 
@@ -242,36 +246,42 @@ class BPMDetector {
 
     const secondsPerBeat = 60 / this.currentBPM;
     while (this.nextTickTime < ctx.currentTime + this.scheduleAhead) {
-      this._playClick(this.nextTickTime);
-      this._scheduleFlash(this.nextTickTime);
+      const isDownbeat = this.beatsPerBar > 0 && (this.beatCount % this.beatsPerBar) === 0;
+      this._playClick(this.nextTickTime, isDownbeat);
+      this._scheduleFlash(this.nextTickTime, isDownbeat);
+      this.beatCount = (this.beatCount + 1) % (this.beatsPerBar || 1);
       this.nextTickTime += secondsPerBeat;
     }
   }
 
   /** Trigger the UI pulse in sync with a click scheduled at audio time `when`. */
-  _scheduleFlash(when) {
+  _scheduleFlash(when, isDownbeat) {
     const ctx = this.audioContext;
     if (!ctx) return;
     const delayMs = Math.max(0, (when - ctx.currentTime) * 1000);
     setTimeout(() => {
-      if (this.running && this.schedulerTimer) this.onBeat();
+      if (this.running && this.schedulerTimer) this.onBeat(!!isDownbeat);
     }, delayMs);
   }
 
   /** Synthesize a short percussive click at audio-clock time `when`. */
-  _playClick(when) {
+  _playClick(when, accent) {
     const ctx = this.audioContext;
     if (!ctx) return;
     const t = when ?? ctx.currentTime;
 
+    // The downbeat is a higher, slightly louder tick so bar 1 stands out.
+    const freq = accent ? 2400 : 1600;
+    const peak = accent ? Math.min(1, this.clickVolume * 1.6) : this.clickVolume;
+
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'square';
-    osc.frequency.setValueAtTime(1600, t);
+    osc.frequency.setValueAtTime(freq, t);
 
     // Fast attack, quick exponential decay — a tight metronome "tick".
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(this.clickVolume, t + 0.001);
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.001);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
 
     osc.connect(gain);
@@ -405,6 +415,7 @@ class BPMDetector {
     this.running = false;
     this._stopScheduler();
     this.currentBPM = 0;
+    this.beatCount = 0;
     if (this.analyzeTimer) {
       clearInterval(this.analyzeTimer);
       this.analyzeTimer = null;
