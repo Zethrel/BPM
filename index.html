@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0b0f1a" />
+  <meta name="description" content="Detect the tempo (BPM) of any song in real time using your phone's microphone." />
+
+  <!-- iOS home-screen app -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="BPM Counter" />
+  <link rel="apple-touch-icon" href="./icons/icon.svg" />
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <title>BPM Counter — Tempo from your mic</title>
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <h1>BPM Counter</h1>
+      <p class="tagline">Point your phone at the music</p>
+    </header>
+
+    <section class="reading" aria-live="polite">
+      <div id="pulse" class="pulse" aria-hidden="true"></div>
+      <div class="reading-inner">
+        <div id="bpm-value" class="bpm-value">--</div>
+        <div id="bpm-sub" class="bpm-sub">tap start to begin</div>
+      </div>
+    </section>
+
+    <section class="meters">
+      <div class="meter">
+        <span class="meter-label">Input level</span>
+        <div class="meter-track"><div id="level-bar" class="meter-fill level"></div></div>
+      </div>
+      <div class="meter">
+        <span class="meter-label">Confidence</span>
+        <div class="meter-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="conf-bar" class="meter-fill conf"></div>
+        </div>
+      </div>
+    </section>
+
+    <button id="toggle-btn" class="toggle-btn" type="button">
+      <span class="mic-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+          <line x1="12" y1="18" x2="12" y2="22"/>
+        </svg>
+      </span>
+      <span id="toggle-label">Start</span>
+    </button>
+
+    <p id="status" class="status">Ready.</p>
+
+    <section class="tap-section">
+      <p class="tap-hint">No music? Tap the tempo yourself:</p>
+      <button id="tap-btn" class="tap-btn" type="button">TAP</button>
+      <div id="tap-bpm" class="tap-bpm">— BPM</div>
+    </section>
+
+    <footer class="app-footer">
+      <p>All processing happens on your device. Nothing is recorded or uploaded.</p>
+    </footer>
+  </main>
+
+  <script src="./js/bpm-detector.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
