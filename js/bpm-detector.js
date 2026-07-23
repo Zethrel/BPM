@@ -28,6 +28,10 @@ class BPMDetector {
     this.onLevel = options.onLevel ?? (() => {});
     this.onError = options.onError ?? (() => {});
 
+    // Metronome click on each detected beat
+    this.clickEnabled = options.click ?? false;
+    this.clickVolume = options.clickVolume ?? 0.3;
+
     // Audio graph nodes
     this.audioContext = null;
     this.stream = null;
@@ -168,7 +172,38 @@ class BPMDetector {
     if (rms > avg * 1.35 && rms > floor && sinceLast > 180) {
       this.lastBeatTime = now;
       this.onBeat();
+      if (this.clickEnabled) this._playClick();
     }
+  }
+
+  /** Enable/disable the metronome click at runtime. */
+  setClick(enabled) {
+    this.clickEnabled = !!enabled;
+  }
+
+  /** Synthesize a short percussive click through the live AudioContext. */
+  _playClick() {
+    const ctx = this.audioContext;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1600, now);
+
+    // Fast attack, quick exponential decay — a tight metronome "tick".
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(this.clickVolume, now + 0.001);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.06);
+    osc.onended = () => {
+      try { osc.disconnect(); gain.disconnect(); } catch (_) {}
+    };
   }
 
   _analyze() {

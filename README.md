@@ -13,6 +13,7 @@ uploaded.
 ## Features
 
 - 🎤 **Live BPM detection** from the microphone
+- 🥁 **Metronome click** on every detected beat (toggleable; preference is saved)
 - 👆 **Tap tempo** fallback for when there's no music playing (or tap the
   spacebar on desktop)
 - 📊 Real-time input-level and confidence meters

@@ -14,9 +14,20 @@
   const confBar = el('conf-bar');
   const tapBtn = el('tap-btn');
   const tapBpm = el('tap-bpm');
+  const clickToggle = el('click-toggle');
 
   let detector = null;
   let listening = false;
+
+  // Restore the saved metronome-click preference.
+  try {
+    clickToggle.checked = localStorage.getItem('bpm.click') === '1';
+  } catch (_) { /* storage may be unavailable */ }
+
+  clickToggle.addEventListener('change', () => {
+    if (detector) detector.setClick(clickToggle.checked);
+    try { localStorage.setItem('bpm.click', clickToggle.checked ? '1' : '0'); } catch (_) {}
+  });
 
   // ---- Live detection ------------------------------------------------------
 
@@ -40,6 +51,7 @@
     detector = new BPMDetector({
       minBPM: 60,
       maxBPM: 180,
+      click: clickToggle.checked,
       onBpm: (bpm, info) => {
         bpmValue.textContent = bpm;
         bpmSub.textContent = 'beats per minute';
