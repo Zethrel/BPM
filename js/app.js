@@ -15,9 +15,15 @@
   const tapBtn = el('tap-btn');
   const tapBpm = el('tap-bpm');
   const clickToggle = el('click-toggle');
+  const downbeatBtn = el('downbeat-btn');
 
   let detector = null;
   let listening = false;
+
+  // The "set the 1" control only makes sense while the metronome is clicking.
+  function updateDownbeatBtn() {
+    downbeatBtn.disabled = !(listening && clickToggle.checked);
+  }
 
   // Restore the saved metronome-click preference.
   try {
@@ -27,6 +33,16 @@
   clickToggle.addEventListener('change', () => {
     if (detector) detector.setClick(clickToggle.checked);
     try { localStorage.setItem('bpm.click', clickToggle.checked ? '1' : '0'); } catch (_) {}
+    updateDownbeatBtn();
+  });
+
+  downbeatBtn.addEventListener('click', () => {
+    if (!detector) return;
+    detector.resyncDownbeat();
+    downbeatBtn.classList.remove('flash');
+    void downbeatBtn.offsetWidth;
+    downbeatBtn.classList.add('flash');
+    setTimeout(() => downbeatBtn.classList.remove('flash'), 160);
   });
 
   // ---- Live detection ------------------------------------------------------
@@ -82,10 +98,12 @@
       toggleLabel.textContent = 'Stop';
       bpmSub.textContent = 'listening…';
       setStatus('Listening — play a song near the microphone.');
+      updateDownbeatBtn();
     } catch (_) {
       listening = false;
       toggleBtn.classList.remove('active');
       toggleLabel.textContent = 'Start';
+      updateDownbeatBtn();
     }
   }
 
@@ -101,6 +119,7 @@
     levelBar.style.width = '0%';
     confBar.style.width = '0%';
     setStatus('Stopped.');
+    updateDownbeatBtn();
   }
 
   toggleBtn.addEventListener('click', () => {

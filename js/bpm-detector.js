@@ -203,6 +203,28 @@ class BPMDetector {
   }
 
   /**
+   * Re-align the bar to "now": the tempo (interval) stays locked to the music,
+   * but the grid phase is shifted so the next click lands ~immediately and is
+   * treated as beat 1. Lets the user tap in time to declare the downbeat.
+   * Returns true if it took effect (i.e. the metronome is actively clicking).
+   */
+  resyncDownbeat() {
+    const ctx = this.audioContext;
+    if (!this.running || !this.schedulerTimer || !ctx || this.currentBPM <= 0) {
+      return false;
+    }
+    // Drop clicks already queued under the old phase so they don't sound.
+    this.scheduledOsc.forEach((osc) => {
+      try { osc.stop(ctx.currentTime); } catch (_) {}
+    });
+    this.scheduledOsc = [];
+    // Next tick fires almost immediately, as the downbeat.
+    this.beatCount = 0;
+    this.nextTickTime = ctx.currentTime + 0.06;
+    return true;
+  }
+
+  /**
    * Lookahead scheduler (cf. "A Tale of Two Clocks"): a coarse JS timer wakes up
    * every ~25 ms and schedules any clicks falling inside the next 100 ms window
    * on the precise audio clock. Tempo changes only affect *future* ticks, so the
