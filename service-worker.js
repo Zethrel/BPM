@@ -1,5 +1,5 @@
 /* Minimal offline cache so the app works after the first load. */
-const CACHE = 'bpm-counter-v5';
+const CACHE = 'bpm-counter-v6';
 const ASSETS = [
   './',
   './index.html',

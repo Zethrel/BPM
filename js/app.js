@@ -16,9 +16,35 @@
   const tapBpm = el('tap-bpm');
   const clickToggle = el('click-toggle');
   const downbeatBtn = el('downbeat-btn');
+  const timesig = el('timesig');
+  const timesigHint = el('timesig-hint');
 
   let detector = null;
   let listening = false;
+  let suggestedBeats = 0;
+
+  const METER_LABELS = { 2: '2/4', 3: '3/4', 4: '4/4', 6: '6/8' };
+
+  // Restore the saved time signature.
+  try {
+    const savedSig = localStorage.getItem('bpm.timesig');
+    if (savedSig) timesig.value = savedSig;
+  } catch (_) { /* storage may be unavailable */ }
+
+  timesig.addEventListener('change', () => {
+    const beats = parseInt(timesig.value, 10) || 4;
+    if (detector) detector.setBeatsPerBar(beats);
+    try { localStorage.setItem('bpm.timesig', String(beats)); } catch (_) {}
+    // Hide the hint if it now matches the manual choice.
+    if (suggestedBeats === beats) timesigHint.hidden = true;
+  });
+
+  timesigHint.addEventListener('click', () => {
+    if (!suggestedBeats) return;
+    timesig.value = String(suggestedBeats);
+    timesig.dispatchEvent(new Event('change'));
+    timesigHint.hidden = true;
+  });
 
   // The "set the 1" control only makes sense while the metronome is clicking.
   function updateDownbeatBtn() {
@@ -69,6 +95,20 @@
       minBPM: 60,
       maxBPM: 180,
       click: clickToggle.checked,
+      beatsPerBar: parseInt(timesig.value, 10) || 4,
+      onMeter: (beats) => {
+        const label = METER_LABELS[beats];
+        if (!label) return;
+        suggestedBeats = beats;
+        const current = parseInt(timesig.value, 10) || 4;
+        if (beats === current) {
+          timesigHint.textContent = `Auto-guess: ${label} ✓ (matches)`;
+          timesigHint.hidden = false;
+        } else {
+          timesigHint.textContent = `Auto-guess: ${label} · tap to use`;
+          timesigHint.hidden = false;
+        }
+      },
       onBpm: (bpm, info) => {
         bpmValue.textContent = bpm;
         bpmSub.textContent = 'beats per minute';
@@ -120,6 +160,8 @@
     confBar.style.width = '0%';
     setStatus('Stopped.');
     updateDownbeatBtn();
+    timesigHint.hidden = true;
+    suggestedBeats = 0;
   }
 
   toggleBtn.addEventListener('click', () => {

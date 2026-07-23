@@ -18,6 +18,9 @@ uploaded.
   **downbeat accent** on beat 1 of every 4/4 bar
 - 👇 **Tap to set the "1"** — re-phase the bar so a downbeat lands on your tap,
   without changing the tempo
+- 🎼 **Time-signature selector** (2/4, 3/4, 4/4, 5/4, 6/8) driving the accent
+  grouping, plus an **experimental auto-guess** that suggests the meter from the
+  accent pattern (tap the hint to apply it)
 - 👆 **Tap tempo** fallback for when there's no music playing (or tap the
   spacebar on desktop)
 - 📊 Real-time input-level and confidence meters
@@ -84,3 +87,7 @@ icons/                  App icons (SVG)
   buffered.
 - Background/ambient noise reduces confidence; get the mic reasonably close to
   the source.
+- **Time signature can't be derived from the BPM** — it's a separate grouping of
+  the beats. The auto-guess analyses the accent pattern and is a *hint only*:
+  4/4-vs-2/4 and 3/4-vs-6/8 are inherently ambiguous, so the manual selector is
+  the source of truth.

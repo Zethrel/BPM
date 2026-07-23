@@ -34,6 +34,7 @@ class BPMDetector {
     this.onBeat = options.onBeat ?? (() => {});
     this.onLevel = options.onLevel ?? (() => {});
     this.onError = options.onError ?? (() => {});
+    this.onMeter = options.onMeter ?? (() => {}); // experimental meter guess
 
     // Metronome click — driven by a lookahead scheduler locked to the BPM.
     this.clickEnabled = options.click ?? false;
@@ -46,6 +47,7 @@ class BPMDetector {
     this.scheduledOsc = [];            // pending click oscillators (for cleanup)
     this.beatsPerBar = options.beatsPerBar ?? 4; // accent every Nth beat
     this.beatCount = 0;                // position within the current bar
+    this.meterHistory = [];            // recent meter guesses, for smoothing
 
     // Audio graph nodes
     this.audioContext = null;
@@ -129,6 +131,7 @@ class BPMDetector {
     this.lastBeatTime = 0;
     this.bpmHistory = [];
     this.currentBPM = 0;
+    this.meterHistory = [];
 
     this.processor.onaudioprocess = (e) => this._processBlock(e);
 
@@ -200,6 +203,13 @@ class BPMDetector {
     if (!this.running) return;
     if (this.clickEnabled) this._startScheduler();
     else this._stopScheduler();
+  }
+
+  /** Change how many beats make up a bar (the accent grouping). */
+  setBeatsPerBar(n) {
+    const beats = Math.max(1, Math.floor(n) || 1);
+    this.beatsPerBar = beats;
+    this.beatCount = 0; // restart the bar so accents realign immediately
   }
 
   /**
@@ -423,6 +433,84 @@ class BPMDetector {
       instantaneous: bpm,
       confidence,
     });
+
+    // Experimental: guess the meter (beats per bar) from the accent pattern.
+    // Only trust it once the tempo estimate itself looks solid.
+    if (confidence > 0.25) {
+      this._guessMeter(buf, n, Math.round(bestLag));
+    }
+  }
+
+  /**
+   * Experimental meter estimation. Given the onset envelope and the beat period
+   * P (in envelope samples), align to the beat grid, sample each beat's onset
+   * strength, and test candidate groupings (2/3/4/6 beats per bar) by how much
+   * one phase — the downbeat — stands out. The result is majority-voted over
+   * recent analyses before being reported, since single frames are noisy.
+   *
+   * This is a heuristic hint, not ground truth: 4/4-vs-2/4 and 3/4-vs-6/8 are
+   * genuinely ambiguous, and a phone mic in a room is a hard input.
+   */
+  _guessMeter(buf, n, P) {
+    if (!P || P < 2) return;
+
+    // Phase-align to the beat grid: the offset whose beat positions carry the
+    // most onset energy.
+    let bestPhase = 0;
+    let bestEnergy = -Infinity;
+    for (let phi = 0; phi < P; phi++) {
+      let e = 0;
+      for (let pos = phi; pos < n; pos += P) if (buf[pos] > 0) e += buf[pos];
+      if (e > bestEnergy) { bestEnergy = e; bestPhase = phi; }
+    }
+
+    // Per-beat accent = peak onset strength in a small window around each beat.
+    const w = Math.max(1, Math.round(P * 0.18));
+    const accents = [];
+    for (let b = bestPhase; b < n; b += P) {
+      let peak = 0;
+      const lo = Math.max(0, b - w);
+      const hi = Math.min(n - 1, b + w);
+      for (let i = lo; i <= hi; i++) if (buf[i] > peak) peak = buf[i];
+      accents.push(peak);
+    }
+    const K = accents.length;
+    if (K < 6) return; // need at least a couple of bars to judge grouping
+
+    // Score each candidate grouping by downbeat contrast.
+    let best = null;
+    for (const G of [2, 3, 4, 6]) {
+      if (K < G * 2) continue;
+      const phase = new Array(G).fill(0);
+      const count = new Array(G).fill(0);
+      for (let k = 0; k < K; k++) { phase[k % G] += accents[k]; count[k % G]++; }
+      let mean = 0;
+      for (let p = 0; p < G; p++) { phase[p] /= (count[p] || 1); mean += phase[p]; }
+      mean /= G;
+      let maxPhase = -Infinity;
+      let maxIdx = 0;
+      for (let p = 0; p < G; p++) if (phase[p] > maxPhase) { maxPhase = phase[p]; maxIdx = p; }
+      let others = 0;
+      for (let p = 0; p < G; p++) if (p !== maxIdx) others += phase[p];
+      others /= (G - 1);
+      const contrast = (maxPhase - others) / (mean + 1e-9);
+      if (!best || contrast > best.contrast) best = { beats: G, contrast };
+    }
+    if (!best || best.contrast <= 0) return;
+
+    // Majority-vote over recent guesses before emitting anything stable.
+    this.meterHistory.push(best.beats);
+    if (this.meterHistory.length > 6) this.meterHistory.shift();
+    const tally = {};
+    for (const b of this.meterHistory) tally[b] = (tally[b] || 0) + 1;
+    let voted = 0;
+    let votes = 0;
+    for (const key in tally) {
+      if (tally[key] > votes) { votes = tally[key]; voted = +key; }
+    }
+    if (voted && votes >= Math.min(3, this.meterHistory.length)) {
+      this.onMeter(voted, { confidence: votes / this.meterHistory.length });
+    }
   }
 
   /** Fold obvious octave errors back into the allowed BPM window. */
@@ -438,6 +526,7 @@ class BPMDetector {
     this._stopScheduler();
     this.currentBPM = 0;
     this.beatCount = 0;
+    this.meterHistory = [];
     if (this.analyzeTimer) {
       clearInterval(this.analyzeTimer);
       this.analyzeTimer = null;
